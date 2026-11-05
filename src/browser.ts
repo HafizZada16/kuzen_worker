@@ -63,7 +63,7 @@ export async function getBrowser(): Promise<Browser> {
  */
 export async function withPage<T>(
   task: (page: Page, context: BrowserContext) => Promise<T>,
-  options?: { referer?: string }
+  options?: { referer?: string; blockImages?: boolean }
 ): Promise<T> {
   const browser = await getBrowser();
   const context = await browser.newContext({
@@ -81,7 +81,26 @@ export async function withPage<T>(
     },
   });
 
+  // Cegah pembukaan tab popup atau iklan popunder baru
+  context.on('page', async (popup) => {
+    try {
+      console.log('[Browser] Auto-closing unexpected popup page:', popup.url());
+      await popup.close();
+    } catch {
+      // Abaikan jika popup sudah tertutup
+    }
+  });
+
   const page = await context.newPage();
+
+  // Handle otomatis dialog browser (alert, confirm, prompt) agar tidak menggantung
+  page.on('dialog', async (dialog) => {
+    try {
+      await dialog.dismiss();
+    } catch {
+      // Abaikan jika dialog sudah tertutup
+    }
+  });
 
   // Optimasi memory: blokir resource yang tidak diperlukan (iklan, font, analitik luar)
   await page.route('**/*', (route) => {
@@ -92,6 +111,10 @@ export async function withPage<T>(
     // Jangan blokir script, document, xhr/fetch, atau stream playlist
     if (url.includes('.m3u8') || url.includes('/stream') || url.includes('leviathan')) {
       return route.continue();
+    }
+
+    if (options?.blockImages && resourceType === 'image') {
+      return route.abort();
     }
 
     // Blokir tracker pihak ketiga umum & font berat
