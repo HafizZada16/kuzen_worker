@@ -367,6 +367,48 @@ app.get('/api/idlix/stream', handleIdlixStream);
 app.get('/api/idlix/watch', handleIdlixStream);
 
 /* ========================================================================= */
+/*                          STREAM M3U8 CORS PROXY                           */
+/* ========================================================================= */
+
+// Endpoint proxy untuk mengatasi CORS issue pada HLS player web (misal hls.js / browser)
+app.get('/api/proxy/m3u8', async (c) => {
+  const targetUrl = c.req.query('url');
+  const referer = c.req.query('referer') || 'https://playcdn.de/';
+
+  if (!targetUrl) {
+    return c.text('Missing "url" query parameter', 400);
+  }
+
+  try {
+    const decodedUrl = decodeURIComponent(targetUrl);
+    const origin = referer.replace(/\/$/, '');
+
+    const response = await fetch(decodedUrl, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        Referer: referer,
+        Origin: origin,
+      },
+    });
+
+    if (!response.ok) {
+      return c.text(`Upstream stream error: ${response.status}`, response.status as any);
+    }
+
+    const playlistText = await response.text();
+
+    return c.body(playlistText, 200, {
+      'Content-Type': 'application/vnd.apple.mpegurl',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+    });
+  } catch (err: any) {
+    return c.text(`Proxy failed: ${err.message}`, 500);
+  }
+});
+
+/* ========================================================================= */
 /*                          404 & SERVER LIFECYCLE                           */
 /* ========================================================================= */
 

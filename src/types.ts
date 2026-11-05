@@ -17,6 +17,12 @@ export interface MoviePlayerItem {
   url: string;
 }
 
+export interface MovieSubtitleItem {
+  lang: string;
+  label: string;
+  url: string;
+}
+
 export interface ScrapeResult {
   title: string;
   episode: string;
@@ -86,6 +92,7 @@ export interface MovieStreamResult {
   serverList: ServerListItem[];
   players: MoviePlayerItem[];
   streams: StreamItem[];
+  subtitles?: MovieSubtitleItem[];
   video_sources: Array<{ label: string; file: string; type: string }>;
   originalUrl?: string;
 }

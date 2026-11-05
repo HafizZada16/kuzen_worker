@@ -81,8 +81,11 @@ export async function withPage<T>(
     },
   });
 
-  // Cegah pembukaan tab popup atau iklan popunder baru
+  const page = await context.newPage();
+
+  // Cegah pembukaan tab popup atau iklan popunder baru (hanya untuk popup, bukan halaman utama)
   context.on('page', async (popup) => {
+    if (popup === page) return;
     try {
       console.log('[Browser] Auto-closing unexpected popup page:', popup.url());
       await popup.close();
@@ -90,8 +93,6 @@ export async function withPage<T>(
       // Abaikan jika popup sudah tertutup
     }
   });
-
-  const page = await context.newPage();
 
   // Handle otomatis dialog browser (alert, confirm, prompt) agar tidak menggantung
   page.on('dialog', async (dialog) => {

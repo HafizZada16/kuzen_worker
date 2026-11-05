@@ -582,11 +582,31 @@ export async function scrapeLk21Stream(
 
       const capturedStreams: StreamItem[] = [];
       const seenStreams = new Set<string>();
+      let directStreamUrl = '';
 
       page.on('response', async (response) => {
         try {
           const resUrl = response.url();
           const contentType = response.headers()['content-type'] || '';
+
+          // Intercept verify response dari playcdn.de untuk mendapatkan fileUrl m3u8 asli
+          if (resUrl.includes('playcdn.de/verify/')) {
+            try {
+              const verifyJson = await response.json();
+              if (verifyJson?.fileUrl) {
+                directStreamUrl = verifyJson.fileUrl;
+                console.log('[LK21] Extracted Direct PlayCDN HLS Stream:', directStreamUrl);
+                if (!seenStreams.has(directStreamUrl)) {
+                  seenStreams.add(directStreamUrl);
+                  capturedStreams.unshift({
+                    server: 'PlayCDN HLS (Direct)',
+                    url: directStreamUrl,
+                    type: 'hls',
+                  });
+                }
+              }
+            } catch {}
+          }
 
           if (
             resUrl.includes('.m3u8') ||
@@ -608,6 +628,9 @@ export async function scrapeLk21Stream(
 
       await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: DEFAULT_TIMEOUT_MS });
       await waitIfCloudflare(page);
+
+      // Beri jeda sejenak untuk trigger verify request dari player
+      await page.waitForTimeout(3000);
 
       const rawTitle = cleanText(
         (await page.$eval('h1.entry-title, h1', (el) => el.textContent).catch(() => null)) ||
@@ -708,11 +731,13 @@ export async function scrapeLk21Stream(
         type: s.type,
       }));
 
+      const primaryStream = directStreamUrl || finalIframe || capturedStreams[0]?.url || '';
+
       return {
         title,
         slug,
         thumb: toAbsoluteUrl(thumb, targetUrl),
-        stream_url: finalIframe || capturedStreams[0]?.url || '',
+        stream_url: primaryStream,
         iframe: finalIframe,
         servers: serverList,
         serverList,
